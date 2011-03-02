@@ -1,0 +1,12 @@
+This plugin deploys maven projects to remote Jboss 4.x-6.x and Glassfish 3.1 servers.
+Features:
+- uses HTTP API only, do not require local Jboss or Glassfish installation.
+- supports secure connections.
+- auto find the best module to deploy. If it runs from 'pom' type project, 
+  it scans child modules for 'ear' 'war' 'rjb' 'rar' ... types, and use
+  most common type to deploy. Therefore, you can build and deploy your project
+  by single command: mvn package deployer:deploy from the root module. Of course,
+  it's configurable.
+- if target Jboss server runs on remote machine, tries to find public API ( jboss downloads
+  file to deploy from URL, therefore that URL should be visible from target server.
+
