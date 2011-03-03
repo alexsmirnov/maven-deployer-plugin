@@ -25,10 +25,10 @@ public final class DeployerHTTPD extends NanoHTTPD {
 
 	private Log log;
 
-	public DeployerHTTPD(int port, String url, File send, Log log)
+	public DeployerHTTPD(int port, File send, Log log)
 	        throws IOException {
 		super(port);
-		this.url = url;
+		this.url = send.getName();
 		this.send = send;
 		this.log = log;
 	}
@@ -39,7 +39,7 @@ public final class DeployerHTTPD extends NanoHTTPD {
 		        "Request from server to URL " + uri + " by Method "
 		                + method);
 		Response response;
-		if (url.equals(uri.trim())) {
+		if (uri.trim().endsWith(url)) {
 			try {
 				FileInputStream fis = new FileInputStream(send);
 				response = new Response(NanoHTTPD.HTTP_OK, MIME_JAR, fis);

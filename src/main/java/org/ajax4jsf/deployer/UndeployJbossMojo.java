@@ -15,6 +15,8 @@
  */
 package org.ajax4jsf.deployer;
 
+import java.io.File;
+
 import org.apache.maven.plugin.MojoExecutionException;
 
 /**
@@ -37,13 +39,11 @@ public class UndeployJbossMojo extends AbstractJbossDeployer {
 
 	public void execute() throws MojoExecutionException {
 
-		calculateDeploymentFile();
+		File fileToDeploy = getDeploymentFile();
 		// Fix the ejb packaging to a jar
-		String fixedFile = null;
-		fixedFile = getDeployFileName();
 
-		getLog().info("Undeploying " + fixedFile + " from JBoss.");
-		String url = getDeploymentURL();
+		getLog().info("Undeploying " + fileToDeploy + " from JBoss.");
+		String url = getDeploymentURL(fileToDeploy);
 		doURL(url);
 	}
 

@@ -18,17 +18,10 @@ package org.ajax4jsf.deployer;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.MalformedURLException;
-import java.net.NetworkInterface;
 import java.net.URI;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
 
 import org.apache.commons.codec.binary.Base64;
@@ -47,13 +40,15 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 
 	/**
 	 * The default username to use when authenticating with Tomcat manager.
+	 * @parameter expression="${user}" default-value="admin"
 	 */
-	private static final String DEFAULT_USERNAME = "admin";
+	protected String user = "admin";
 
 	/**
 	 * The default password to use when authenticating with Tomcat manager.
+	 * @parameter expression="${password}" default-value=""
 	 */
-	private static final String DEFAULT_PASSWORD = "";
+	protected String password = "";
 
 	/**
 	 * The project whose project files to create.
@@ -88,41 +83,14 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 * @readonly
 	 */
 	protected String packaging;
-	/**
-	 * The targetPort jboss is running on
-	 * 
-	 * @parameter expression="${targetPort}" default-value="8080"
-	 */
-	protected int targetPort;
 
 	/**
 	 * The host jboss is running on
 	 * 
-	 * @parameter expression="${targetHostName}" default-value="localhost"
+	 * @parameter expression="${targetHost}" default-value="localhost"
 	 * @required
 	 */
-	protected String targetHostName;
-
-	/**
-	 * The port local server is running on
-	 * 
-	 * @parameter expression="${localPort}" default-value="9999"
-	 * @required
-	 */
-	protected int localPort;
-	/**
-	 * The host local server is running on
-	 * 
-	 * @parameter expression="${localHostName}"
-	 */
-	protected String localHostName;
-
-	/**
-	 * The name of the file or directory to deploy or undeploy.
-	 * 
-	 * @parameter expression="${deployFileName}"
-	 */
-	protected String deployFileName;
+	protected String targetHost;
 
 	/**
 	 * The name of the file or directory to deploy or undeploy.
@@ -141,15 +109,10 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 * @required
 	 * @readonly
 	 */
-	private WagonManager wagonManager;
+	protected WagonManager wagonManager;
 
 	/**
-	 * @parameter expression ="${http}" default-value="true"
-	 * 
-	 */
-	private boolean remote = true;
-	/**
-	 * @parameter expression ="${secure}" default-value="true"
+	 * @parameter expression ="${secure}" default-value="false"
 	 * 
 	 */
 	private boolean secure = false;
@@ -159,9 +122,12 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 * 
 	 * @parameter
 	 */
-	private String targetServer;
+	protected String targetServer;
 
-	private File deploymentFile;
+	/**
+	 * @parameter expression="${deploymentFile}"
+	 */
+	protected File deploymentFile;
 
 	protected void doURL(String url) throws MojoExecutionException {
 		try {
@@ -183,100 +149,13 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 		}
 	}
 
-	/**
-	 * Gets the HTTP Basic Authorization header value for the supplied username
-	 * and password.
-	 * 
-	 * @return the HTTP Basic Authorization header value
-	 * @throws MojoExecutionException
-	 */
-	private String toAuthorization() throws MojoExecutionException {
-		String userName;
-		String password;
-
-		if (targetServer == null) {
-			// no targetServer set, use defaults
-			getLog()
-			        .info(
-			                "No targetServer specified for authentication - using defaults");
-			userName = DEFAULT_USERNAME;
-			password = DEFAULT_PASSWORD;
-		} else {
-			// obtain authenication details for specified targetServer from
-			// wagon
-			AuthenticationInfo info = wagonManager
-			        .getAuthenticationInfo(targetServer);
-			if (info == null) {
-				throw new MojoExecutionException(
-				        "Server not defined in settings.xml: " + targetServer);
-			}
-
-			// derive username
-			userName = info.getUserName();
-			if (userName == null) {
-				getLog().info(
-				        "No targetServer username specified - using default");
-				userName = DEFAULT_USERNAME;
-			}
-
-			// derive password
-			password = info.getPassword();
-			if (password == null) {
-				getLog().info(
-				        "No targetServer password specified - using default");
-				password = DEFAULT_PASSWORD;
-			}
-		}
-
-		StringBuffer buffer = new StringBuffer();
-		buffer.append(userName).append(':');
-		if (password != null) {
-			buffer.append(password);
-		}
-		return "Basic "
-		        + new String(Base64.encodeBase64(buffer.toString().getBytes()));
-	}
-
-	/**
-	 * @param fixedFile
-	 * @return
-	 * @throws MojoExecutionException
-	 */
-	protected String getDeploymentURL() throws MojoExecutionException {
-		StringBuilder url = new StringBuilder();
-		url.append("http://").append(targetHostName).append(":").append(targetPort).append(getUrl());
-		if(remote){
-			url.append("http://").append(getLocalHostName()).append(":").append(localPort).append("/").append(getDeployFileName());
-		} else {
-			try {
-				url.append(deploymentFile.getAbsoluteFile().toURI().toURL().toString());
-			} catch (MalformedURLException e) {
-				throw new MojoExecutionException("Error creating deployment url",e);
-			}
-		}
-		return url.toString();
-//		"http://" + targetHostName + ":" + targetPort + getUrl()
-//		        + "http://" + getLocalHostName() + ":" + localPort + "/"
-//		        + getDeployFileName();
-	}
-
-	protected abstract String getUrl();
-
-	/**
-	 * @return
-	 * @throws MojoExecutionException
-	 */
-	protected String getDeployFileName() throws MojoExecutionException {
-		return deployFileName;
-	}
-
-	protected void calculateDeploymentFile() throws MojoExecutionException {
-		if (null == deployFileName) {
+	protected File getDeploymentFile() throws MojoExecutionException {
+		if (null == deploymentFile) {
 			MavenProject deploymentProject = null;
 			if ("pom".equalsIgnoreCase(packaging)) {
 				getLog().debug("Check subprojects for deployable file");
 				int highLevel = 0;
-				// Look for the ear ( preffered ) subproject
+				// Look for the ear ( preferred ) subproject
 				for (MavenProject subproject : reactorProjects) {
 					if ("ear".equalsIgnoreCase(subproject.getPackaging())) {
 						deploymentProject = subproject;
@@ -331,106 +210,67 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 					        + artifact.getType());
 				}
 			}
-			if (deploymentFile.exists() && !deploymentFile.isDirectory()) {
-				deployFileName = deploymentFile.getName();
-			} else {
+			if (!deploymentFile.exists() || deploymentFile.isDirectory()) {
 				throw new MojoExecutionException("No file for target artifact:"
 				        + deploymentProject.toString());
 			}
 
 		}
+		return deploymentFile;
 	}
 
-	protected String getLocalHostName() throws MojoExecutionException {
-		if (null == localHostName) {
-			// Detect public interface.
-			try {
-				// Deployment to local host from the local address
-				if (InetAddress.getByName(targetHostName).isLoopbackAddress()) {
-					localHostName = InetAddress.getLocalHost().getHostAddress();
-				} else {
-					Enumeration<NetworkInterface> interfaces = NetworkInterface
-					        .getNetworkInterfaces();
-					List<InetAddress> publicAddresses = new ArrayList<InetAddress>();
-					while (interfaces.hasMoreElements()) {
-						NetworkInterface networkInterface = (NetworkInterface) interfaces
-						        .nextElement();
-						Enumeration<InetAddress> addresses = networkInterface
-						        .getInetAddresses();
-						while (addresses.hasMoreElements()) {
-							InetAddress inetAddress = (InetAddress) addresses
-							        .nextElement();
-							if (inetAddress instanceof Inet4Address
-							        && !inetAddress.isLoopbackAddress()
-							        && inetAddress.isReachable(10)) {
-								publicAddresses.add(inetAddress);
-							}
-						}
-					}
-					if (publicAddresses.size() == 0) {
-						throw new MojoExecutionException(
-						        "No public addresses detected");
-					} else if (publicAddresses.size() == 1) {
-						localHostName = publicAddresses.get(0).getHostAddress();
-					} else {
-						// Look for direct interface for target host.
-						// Non-local address is preffered.
-						for (InetAddress inetAddress : publicAddresses) {
-							if (!inetAddress.isSiteLocalAddress()) {
-								localHostName = inetAddress.getHostAddress();
-							}
-						}
-						// If all addresses are local, return first.
-						if (null == localHostName) {
-							localHostName = publicAddresses.get(0)
-							        .getHostAddress();
-
-						}
-					}
-				}
-			} catch (Exception e) {
-				throw new MojoExecutionException("Error detect hostname", e);
-			}
-		}
-		getLog().debug("local server host name: " + localHostName);
-		return localHostName;
-	}
-
-	public void execute() throws MojoExecutionException {
-
-		// Fix the ejb packaging to a jar
-		calculateDeploymentFile();
-		String fixedFile = getDeployFileName();
-
-		final String requestUrl = "/" + fixedFile;
-		final File fileToSend = getDeployFile();
-		if (fileToSend.exists()) {
-			getLog().info("Deploying " + fixedFile + " to JBoss.");
-			try {
-				String url = getDeploymentURL();
-				if (remote) {
-					NanoHTTPD httpd = new DeployerHTTPD(localPort, requestUrl,
-					        fileToSend, getLog());
-					httpd.start();
-					doURL(url);
-					Thread.sleep(100L);
-					httpd.stop();
-				} else {
-					doURL(url);
-				}
-			} catch (IOException e) {
-				throw new MojoExecutionException("Local targetPort in use", e);
-			} catch (InterruptedException e) {
-				throw new MojoExecutionException("Send file interrupted", e);
-			}
-
+	/**
+	 * Gets the HTTP Basic Authorization header value for the supplied username
+	 * and password.
+	 * 
+	 * @return the HTTP Basic Authorization header value
+	 * @throws MojoExecutionException
+	 */
+	protected String toAuthorization() throws MojoExecutionException {
+		String userName;
+		String password;
+	
+		if (targetServer == null) {
+			// no targetServer set, use defaults
+			getLog()
+			        .info(
+			                "No targetServer specified for authentication - using defaults");
+			userName = user;
+			password = this.password;
 		} else {
-			getLog().warn("File " + fixedFile + " do not exist!");
+			// obtain authenication details for specified targetServer from
+			// wagon
+			AuthenticationInfo info = wagonManager
+			        .getAuthenticationInfo(targetServer);
+			if (info == null) {
+				throw new MojoExecutionException(
+				        "Server not defined in settings.xml: " + targetServer);
+			}
+	
+			// derive username
+			userName = info.getUserName();
+			if (userName == null) {
+				getLog().info(
+				        "No targetServer username specified - using default");
+				userName = user;
+			}
+	
+			// derive password
+			password = info.getPassword();
+			if (password == null) {
+				getLog().info(
+				        "No targetServer password specified - using default");
+				password = this.password;
+			}
 		}
-	}
-
-	protected File getDeployFile() throws MojoExecutionException {
-		return new File(buildDirectory, deployFileName);
+	
+		StringBuffer buffer = new StringBuffer();
+		buffer.append(userName).append(':');
+		if (password != null) {
+			buffer.append(password);
+		}
+		return "Basic "
+		        + new String(Base64.encodeBase64(buffer.toString().getBytes()));
 	}
 
 }
