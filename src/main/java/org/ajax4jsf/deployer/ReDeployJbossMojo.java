@@ -19,25 +19,26 @@ package org.ajax4jsf.deployer;
  * Deploys a directory or file to JBoss via JMX
  * 
  * @author <a href="mailto:jgenender@apache.org">Jeff Genender</a>
- * @goal deploy
+ * @goal redeploy-jboss
  * @aggregator true
  * @description Maven 2 JBoss plugin
  */
-public class DeployMojo extends AbstractDeployerMojo {
+public class ReDeployJbossMojo extends AbstractJbossDeployer {
 
-	private static final String DEFAULT_URL = "/jmx-console/HtmlAdaptor?action=invokeOpByName&name=jboss.system:service%3DMainDeployer&methodName=deploy&argType=java.lang.String&arg0=";
+	private static final String DEFAULT_PATH = "/jmx-console/HtmlAdaptor?action=invokeOpByName&name=jboss.system:service%3DMainDeployer&methodName=redeploy&argType=java.lang.String&arg0=";
 	/**
 	 * The deployment URL
 	 * 
-	 * @parameter expression="${deployUrlPath}"
+	 * @parameter expression="${reDeployUrlPath}"
 	 */
-	protected String deployUrlPath;
+	protected String reDeployUrlPath;
 
 	protected String getUrl() {
-		if (null != deployUrlPath) {
-			return deployUrlPath;
+		if (null != reDeployUrlPath) {
+			return reDeployUrlPath;
+
 		} else {
-			return DEFAULT_URL;
+			return DEFAULT_PATH;
 		}
 	}
 }

@@ -25,7 +25,9 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.MalformedURLException;
 import java.net.NetworkInterface;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -223,7 +225,12 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 * @parameter expression ="${http}" default-value="true"
 	 * 
 	 */
-	private boolean http = true;
+	private boolean remote = true;
+	/**
+	 * @parameter expression ="${secure}" default-value="true"
+	 * 
+	 */
+	private boolean secure = false;
 	/**
 	 * The targetServer id to use when authenticating with Tomcat manager, or
 	 * <code>null</code> to use defaults.
@@ -316,10 +323,14 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	protected String getDeploymentURL() throws MojoExecutionException {
 		StringBuilder url = new StringBuilder();
 		url.append("http://").append(targetHostName).append(":").append(targetPort).append(getUrl());
-		if(http){
+		if(remote){
 			url.append("http://").append(getLocalHostName()).append(":").append(localPort).append("/").append(getDeployFileName());
 		} else {
-			url.append(deploymentFile.getAbsoluteFile().toURI().toString());
+			try {
+				url.append(deploymentFile.getAbsoluteFile().toURI().toURL().toString());
+			} catch (MalformedURLException e) {
+				throw new MojoExecutionException("Error creating deployment url",e);
+			}
 		}
 		return url.toString();
 //		"http://" + targetHostName + ":" + targetPort + getUrl()
@@ -475,7 +486,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 			getLog().info("Deploying " + fixedFile + " to JBoss.");
 			try {
 				String url = getDeploymentURL();
-				if (http) {
+				if (remote) {
 					NanoHTTPD httpd = new DeployerHTTPD(localPort, requestUrl,
 					        fileToSend, getLog());
 					httpd.start();
