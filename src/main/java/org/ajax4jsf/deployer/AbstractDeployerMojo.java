@@ -20,17 +20,39 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.Map;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import javax.ws.rs.core.MediaType;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.manager.WagonManager;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.wagon.authentication.AuthenticationInfo;
+
+import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.ClientResponse;
+import com.sun.jersey.api.client.WebResource;
+import com.sun.jersey.api.client.WebResource.Builder;
+import com.sun.jersey.api.client.filter.ClientFilter;
+import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+import com.sun.jersey.core.util.MultivaluedMapImpl;
+import com.sun.jersey.multipart.FormDataMultiPart;
+import com.sun.jersey.multipart.file.FileDataBodyPart;
 
 /**
  * Created by IntelliJ IDEA. User: jeffgenender Date: Oct 1, 2005 Time: 1:36:05
@@ -124,30 +146,75 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 */
 	protected String targetServer;
 
+	
+	/**
+	 * Jersey REST client
+	 */
+	private  Client client;
 	/**
 	 * @parameter expression="${deploymentFile}"
 	 */
 	protected File deploymentFile;
+	
+	public void execute() throws MojoExecutionException, MojoFailureException {
+		init();
+		performCommand();
+	}
 
-	protected void doURL(String url) throws MojoExecutionException {
+	protected abstract void performCommand() throws MojoExecutionException;
+
+	private void init() throws MojoExecutionException {
+		if(secure){
+			disableCertificateValidation();
+		}
+		client = Client.create();
+		client.addFilter(getAuthorization());
+	}
+
+	protected void doPostRequest(Map<String, String> parameters) throws MojoExecutionException {
+		MultivaluedMapImpl mapImpl = new MultivaluedMapImpl();
+		for (Map.Entry<String, String> entry : parameters.entrySet()) {
+			mapImpl.add(entry.getKey(), entry.getValue());
+		}
+		doPost(mapImpl, MediaType.APPLICATION_FORM_URLENCODED_TYPE);
+	}
+
+	protected void doPostFileRequest(String fileParameter, File file,Map<String, String> parameters) throws MojoExecutionException {
+		FormDataMultiPart formDataMultiPart = new FormDataMultiPart();
+		formDataMultiPart.bodyPart(new FileDataBodyPart(fileParameter, file));
+		for (Map.Entry<String, String> entry : parameters.entrySet()) {
+			formDataMultiPart.field(entry.getKey(), entry.getValue());
+		}
+		doPost(formDataMultiPart, MediaType.MULTIPART_FORM_DATA_TYPE);
+	}
+
+	private void doPost(Object parameters, MediaType mediaType)
+			throws MojoExecutionException {
 		try {
-
-			getLog().info("Calling url " + url);
-
-			HttpURLConnection connection = (HttpURLConnection) new URL(url)
-			        .openConnection();
-			connection.setInstanceFollowRedirects(false);
-			connection.setRequestProperty("Authorization", toAuthorization());
-
-			BufferedReader reader = new BufferedReader(new InputStreamReader(
-			        connection.getInputStream()));
-			reader.readLine();
-			reader.close();
+			getLog().info("Calling target server ");
+			Builder resourceBuilder = getResource().type(mediaType).accept(MediaType.APPLICATION_JSON_TYPE,MediaType.TEXT_HTML_TYPE);
+			ClientResponse response = resourceBuilder.post(ClientResponse.class, parameters);
+			if(response.getStatus()!=200){
+				throw new MojoExecutionException("Error processing request "+response.getClientResponseStatus().toString());
+			}
 		} catch (Exception e) {
 			throw new MojoExecutionException("Mojo error occurred: "
 			        + e.getMessage(), e);
 		}
 	}
+	
+	private WebResource getResource() throws MalformedURLException, URISyntaxException{
+		return client.resource(getTargetURI());
+	}
+
+	private URI getTargetURI() throws MalformedURLException, URISyntaxException{
+		URI target = new URL(secure?"https":"http",targetHost,getTargetPort(),getServicePath()).toURI();
+		return target;
+	}
+	
+	protected abstract String getServicePath();
+
+	protected abstract int getTargetPort();
 
 	protected File getDeploymentFile() throws MojoExecutionException {
 		if (null == deploymentFile) {
@@ -226,7 +293,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 * @return the HTTP Basic Authorization header value
 	 * @throws MojoExecutionException
 	 */
-	protected String toAuthorization() throws MojoExecutionException {
+	protected ClientFilter getAuthorization() throws MojoExecutionException {
 		String userName;
 		String password;
 	
@@ -263,14 +330,32 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 				password = this.password;
 			}
 		}
-	
-		StringBuffer buffer = new StringBuffer();
-		buffer.append(userName).append(':');
-		if (password != null) {
-			buffer.append(password);
-		}
-		return "Basic "
-		        + new String(Base64.encodeBase64(buffer.toString().getBytes()));
+		return new HTTPBasicAuthFilter(userName, password);
 	}
+
+	public static void disableCertificateValidation() {
+		        // Create a trust manager that does not validate certificate chains
+		        TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
+		            public X509Certificate[] getAcceptedIssuers() {
+		                return null;
+		            }
+
+		            public void checkClientTrusted(X509Certificate[] certs, String authType) {
+		                return;
+		            }
+
+		            public void checkServerTrusted(X509Certificate[] certs, String authType) {
+		                return;
+		            }
+		        }};
+
+		        // Install the all-trusting trust manager
+		        try {
+		            SSLContext sc = SSLContext.getInstance("SSL");
+		            sc.init(null, trustAllCerts, new SecureRandom());
+		            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+		        } catch (Exception e) {
+		        }
+		    }
 
 }

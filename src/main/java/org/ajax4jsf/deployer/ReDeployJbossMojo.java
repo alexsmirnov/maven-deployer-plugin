@@ -25,20 +25,8 @@ package org.ajax4jsf.deployer;
  */
 public class ReDeployJbossMojo extends AbstractJbossDeployer {
 
-	private static final String DEFAULT_PATH = "/jmx-console/HtmlAdaptor?action=invokeOpByName&name=jboss.system:service%3DMainDeployer&methodName=redeploy&argType=java.lang.String&arg0=";
-	/**
-	 * The deployment URL
-	 * 
-	 * @parameter expression="${reDeployUrlPath}"
-	 */
-	protected String reDeployUrlPath;
-
-	protected String getUrl() {
-		if (null != reDeployUrlPath) {
-			return reDeployUrlPath;
-
-		} else {
-			return DEFAULT_PATH;
-		}
+	@Override
+	protected String getMethodName() {
+		return "redeploy";
 	}
 }

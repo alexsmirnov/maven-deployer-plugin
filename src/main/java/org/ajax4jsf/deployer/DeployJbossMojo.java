@@ -25,19 +25,10 @@ package org.ajax4jsf.deployer;
  */
 public class DeployJbossMojo extends AbstractJbossDeployer {
 
-	private static final String DEFAULT_URL = "/jmx-console/HtmlAdaptor?action=invokeOpByName&name=jboss.system:service%3DMainDeployer&methodName=deploy&argType=java.lang.String&arg0=";
-	/**
-	 * The deployment URL
-	 * 
-	 * @parameter expression="${deployUrlPath}"
-	 */
-	protected String deployUrlPath;
 
-	protected String getUrl() {
-		if (null != deployUrlPath) {
-			return deployUrlPath;
-		} else {
-			return DEFAULT_URL;
-		}
+	@Override
+	protected String getMethodName() {
+		return "deploy";
 	}
+
 }

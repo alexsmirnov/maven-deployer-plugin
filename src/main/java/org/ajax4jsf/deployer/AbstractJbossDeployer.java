@@ -9,15 +9,18 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.NetworkInterface;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.maven.plugin.MojoExecutionException;
 
 /**
  * @author asmirnov
- *
+ * 
  */
 public abstract class AbstractJbossDeployer extends AbstractDeployerMojo {
 
@@ -51,23 +54,24 @@ public abstract class AbstractJbossDeployer extends AbstractDeployerMojo {
 	 * @return
 	 * @throws MojoExecutionException
 	 */
-	protected String getDeploymentURL(File deploymentFile) throws MojoExecutionException {
-			StringBuilder url = new StringBuilder();
-			url.append("http://").append(targetHost).append(":").append(targetPort).append(getUrl());
-			if(remote){
-				url.append("http://").append(getLocalHost()).append(":").append(localPort).append("/").append(deploymentFile.getName());
+	protected String getDeploymentURL(File deploymentFile)
+			throws MojoExecutionException {
+		URL url;
+		try {
+			if (remote) {
+				url = new URL("http", getLocalHost(), localPort, "/"
+						+ deploymentFile.getName());
 			} else {
-				try {
-					url.append(deploymentFile.getAbsoluteFile().toURI().toURL().toString());
-				} catch (MalformedURLException e) {
-					throw new MojoExecutionException("Error creating deployment url",e);
-				}
+				url = deploymentFile.getAbsoluteFile().toURI().toURL();
 			}
-			return url.toString();
-	//		"http://" + targetHostName + ":" + targetPort + getUrl()
-	//		        + "http://" + getLocalHostName() + ":" + localPort + "/"
-	//		        + getDeployFileName();
+		} catch (MalformedURLException e) {
+			throw new MojoExecutionException("Error creating deployment url", e);
 		}
+		return url.toString();
+		// "http://" + targetHostName + ":" + targetPort + getUrl()
+		// + "http://" + getLocalHostName() + ":" + localPort + "/"
+		// + getDeployFileName();
+	}
 
 	protected String getLocalHost() throws MojoExecutionException {
 		if (null == localHost) {
@@ -78,26 +82,26 @@ public abstract class AbstractJbossDeployer extends AbstractDeployerMojo {
 					localHost = InetAddress.getLocalHost().getHostAddress();
 				} else {
 					Enumeration<NetworkInterface> interfaces = NetworkInterface
-					        .getNetworkInterfaces();
+							.getNetworkInterfaces();
 					List<InetAddress> publicAddresses = new ArrayList<InetAddress>();
 					while (interfaces.hasMoreElements()) {
 						NetworkInterface networkInterface = (NetworkInterface) interfaces
-						        .nextElement();
+								.nextElement();
 						Enumeration<InetAddress> addresses = networkInterface
-						        .getInetAddresses();
+								.getInetAddresses();
 						while (addresses.hasMoreElements()) {
 							InetAddress inetAddress = (InetAddress) addresses
-							        .nextElement();
+									.nextElement();
 							if (inetAddress instanceof Inet4Address
-							        && !inetAddress.isLoopbackAddress()
-							        && inetAddress.isReachable(10)) {
+									&& !inetAddress.isLoopbackAddress()
+									&& inetAddress.isReachable(10)) {
 								publicAddresses.add(inetAddress);
 							}
 						}
 					}
 					if (publicAddresses.size() == 0) {
 						throw new MojoExecutionException(
-						        "No public addresses detected");
+								"No public addresses detected");
 					} else if (publicAddresses.size() == 1) {
 						localHost = publicAddresses.get(0).getHostAddress();
 					} else {
@@ -110,9 +114,8 @@ public abstract class AbstractJbossDeployer extends AbstractDeployerMojo {
 						}
 						// If all addresses are local, return first.
 						if (null == localHost) {
-							localHost = publicAddresses.get(0)
-							        .getHostAddress();
-	
+							localHost = publicAddresses.get(0).getHostAddress();
+
 						}
 					}
 				}
@@ -124,33 +127,56 @@ public abstract class AbstractJbossDeployer extends AbstractDeployerMojo {
 		return localHost;
 	}
 
-	public void execute() throws MojoExecutionException {
-	
+	public void performCommand() throws MojoExecutionException {
+
 		// Fix the ejb packaging to a jar
 		final File fileToSend = getDeploymentFile();
-	
+
 		final String requestUrl = fileToSend.getName();
-			getLog().info("Deploying " + requestUrl + " to Server.");
-			try {
-				String url = getDeploymentURL(fileToSend);
-				if (remote) {
-					NanoHTTPD httpd = new DeployerHTTPD(localPort, 
-					        fileToSend, getLog());
-					httpd.start();
-					doURL(url);
-					Thread.sleep(100L);
-					httpd.stop();
-				} else {
-					doURL(url);
-				}
-			} catch (IOException e) {
-				throw new MojoExecutionException("Local targetPort in use", e);
-			} catch (InterruptedException e) {
-				throw new MojoExecutionException("Send file interrupted", e);
+		getLog().info("Deploying " + requestUrl + " to Server.");
+		try {
+			Map<String, String> parameters = getParameters(fileToSend);
+			if (isRequireLocalServer()) {
+				NanoHTTPD httpd = new DeployerHTTPD(localPort, fileToSend,
+						getLog());
+				httpd.start();
+				doPostRequest(parameters);
+				Thread.sleep(100L);
+				httpd.stop();
+			} else {
+				doPostRequest(parameters);
 			}
+		} catch (IOException e) {
+			throw new MojoExecutionException("Local targetPort in use", e);
+		} catch (InterruptedException e) {
+			throw new MojoExecutionException("Send file interrupted", e);
+		}
+	}
 	
+	@Override
+	protected String getServicePath() {
+		return "/jmx-console/HtmlAdaptor";
 	}
 
-	protected abstract String getUrl();
+	@Override
+	protected int getTargetPort() {
+		return targetPort;
+	}
+	private Map<String, String> getParameters(File file) throws MojoExecutionException {
+		HashMap<String, String> parametersMap = new HashMap<String, String>(5);
+		// action=invokeOpByName&name=jboss.system:service%3DMainDeployer&methodName=deploy&argType=java.lang.String&arg0=
+		parametersMap.put("action", "invokeOpByName");
+		parametersMap.put("name", "jboss.system:service%3DMainDeployer");
+		parametersMap.put("methodName", getMethodName());
+		parametersMap.put("argType", String.class.getName());
+		parametersMap.put("arg0",getDeploymentURL(file));
+		return parametersMap;
+	}
+
+	protected abstract String getMethodName();
+
+	public boolean isRequireLocalServer() {
+		return remote;
+	}
 
 }

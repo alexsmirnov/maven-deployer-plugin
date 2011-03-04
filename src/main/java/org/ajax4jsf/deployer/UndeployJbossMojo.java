@@ -29,30 +29,13 @@ import org.apache.maven.plugin.MojoExecutionException;
  */
 public class UndeployJbossMojo extends AbstractJbossDeployer {
 
-	private static final String DEFAULT_PATH = "/jmx-console/HtmlAdaptor?action=invokeOpByName&name=jboss.system:service%3DMainDeployer&methodName=undeploy&argType=java.net.URL&arg0=";
-	/**
-	 * The undeployment URL
-	 * 
-	 * @parameter expression="${undeployUrlPath}"
-	 */
-	protected String undeployUrlPath;
-
-	public void execute() throws MojoExecutionException {
-
-		File fileToDeploy = getDeploymentFile();
-		// Fix the ejb packaging to a jar
-
-		getLog().info("Undeploying " + fileToDeploy + " from JBoss.");
-		String url = getDeploymentURL(fileToDeploy);
-		doURL(url);
+	@Override
+	protected String getMethodName() {
+		return "undeploy";
 	}
-
-	protected String getUrl() {
-		if (null != undeployUrlPath) {
-			return undeployUrlPath;
-
-		} else {
-			return DEFAULT_PATH;
-		}
+	
+	@Override
+	public boolean isRequireLocalServer() {
+		return false;
 	}
 }
