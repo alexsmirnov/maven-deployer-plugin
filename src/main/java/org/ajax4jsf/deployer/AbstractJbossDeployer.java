@@ -166,7 +166,7 @@ public abstract class AbstractJbossDeployer extends AbstractDeployerMojo {
 		HashMap<String, String> parametersMap = new HashMap<String, String>(5);
 		// action=invokeOpByName&name=jboss.system:service%3DMainDeployer&methodName=deploy&argType=java.lang.String&arg0=
 		parametersMap.put("action", "invokeOpByName");
-		parametersMap.put("name", "jboss.system:service%3DMainDeployer");
+		parametersMap.put("name", "jboss.system:service=MainDeployer");
 		parametersMap.put("methodName", getMethodName());
 		parametersMap.put("argType", String.class.getName());
 		parametersMap.put("arg0",getDeploymentURL(file));
