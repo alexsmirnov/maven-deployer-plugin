@@ -127,10 +127,8 @@ public abstract class AbstractJbossDeployer extends AbstractDeployerMojo {
 		return localHost;
 	}
 
-	public void performCommand() throws MojoExecutionException {
+	public void performCommand(final File fileToSend) throws MojoExecutionException {
 
-		// Fix the ejb packaging to a jar
-		final File fileToSend = getDeploymentFile();
 
 		final String requestUrl = fileToSend.getName();
 		getLog().info("Deploying " + requestUrl + " to Server.");

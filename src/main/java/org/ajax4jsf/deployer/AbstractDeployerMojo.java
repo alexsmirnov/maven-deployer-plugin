@@ -29,8 +29,10 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Map;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import javax.ws.rs.core.MediaType;
@@ -48,8 +50,11 @@ import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.WebResource.Builder;
+import com.sun.jersey.api.client.config.ClientConfig;
+import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.ClientFilter;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+import com.sun.jersey.client.urlconnection.HTTPSProperties;
 import com.sun.jersey.core.util.MultivaluedMapImpl;
 import com.sun.jersey.multipart.FormDataMultiPart;
 import com.sun.jersey.multipart.file.FileDataBodyPart;
@@ -158,42 +163,81 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	
 	public void execute() throws MojoExecutionException, MojoFailureException {
 		init();
-		performCommand();
+		performCommand(getDeploymentFile());
 	}
 
-	protected abstract void performCommand() throws MojoExecutionException;
+	protected abstract void performCommand(File file) throws MojoExecutionException;
 
 	private void init() throws MojoExecutionException {
-		if(secure){
-			disableCertificateValidation();
-		}
-		client = Client.create();
+		SSLContext ctx = createSSLContext();
+		ClientConfig config=new DefaultClientConfig();
+		config.getProperties().put(HTTPSProperties.PROPERTY_HTTPS_PROPERTIES, new HTTPSProperties(getHostNameVerifier(),ctx));
+		config.getProperties().put(ClientConfig.PROPERTY_FOLLOW_REDIRECTS,Boolean.TRUE);
+		client = Client.create(config);
+		client.setFollowRedirects(true);
 		client.addFilter(getAuthorization());
 	}
 
+	private HostnameVerifier getHostNameVerifier() {
+		return new HostnameVerifier() {
+			
+			public boolean verify(String hostname, SSLSession session) {
+				return true;
+			}
+		};
+	}
+
 	protected void doPostRequest(Map<String, String> parameters) throws MojoExecutionException {
-		MultivaluedMapImpl mapImpl = new MultivaluedMapImpl();
+		final MultivaluedMapImpl mapImpl = prepareParameters(parameters);
+		doPost(new RequestInvoker() {
+			
+			public ClientResponse perform(Builder resource) {
+				return resource.type(MediaType.APPLICATION_FORM_URLENCODED_TYPE).post(ClientResponse.class, mapImpl);
+			}
+		});
+	}
+
+	protected void doDeleteRequest(final Map<String, String> parameters) throws MojoExecutionException {
+		final MultivaluedMapImpl mapImpl = prepareParameters(parameters);
+		doPost(new RequestInvoker() {
+			
+			public ClientResponse perform(Builder resource) {
+//				for (Map.Entry<String, String> entry : parameters.entrySet()) {
+//					resource.
+//				}
+				return resource.type(MediaType.APPLICATION_FORM_URLENCODED_TYPE).delete(ClientResponse.class);
+			}
+		});
+	}
+
+	private MultivaluedMapImpl prepareParameters(Map<String, String> parameters) {
+		final MultivaluedMapImpl mapImpl = new MultivaluedMapImpl();
 		for (Map.Entry<String, String> entry : parameters.entrySet()) {
 			mapImpl.add(entry.getKey(), entry.getValue());
 		}
-		doPost(mapImpl, MediaType.APPLICATION_FORM_URLENCODED_TYPE);
+		return mapImpl;
 	}
 
 	protected void doPostFileRequest(String fileParameter, File file,Map<String, String> parameters) throws MojoExecutionException {
-		FormDataMultiPart formDataMultiPart = new FormDataMultiPart();
+		final FormDataMultiPart formDataMultiPart = new FormDataMultiPart();
 		formDataMultiPart.bodyPart(new FileDataBodyPart(fileParameter, file));
 		for (Map.Entry<String, String> entry : parameters.entrySet()) {
 			formDataMultiPart.field(entry.getKey(), entry.getValue());
 		}
-		doPost(formDataMultiPart, MediaType.MULTIPART_FORM_DATA_TYPE);
+		doPost(new RequestInvoker() {
+			
+			public ClientResponse perform(Builder resource) {
+				return resource.type(MediaType.MULTIPART_FORM_DATA_TYPE).post(ClientResponse.class, formDataMultiPart);
+			}
+		});
 	}
 
-	private void doPost(Object parameters, MediaType mediaType)
+	private void doPost(RequestInvoker invoker)
 			throws MojoExecutionException {
 		try {
 			getLog().info("Calling target server ");
-			Builder resourceBuilder = getResource().type(mediaType).accept(MediaType.APPLICATION_JSON_TYPE,MediaType.TEXT_HTML_TYPE);
-			ClientResponse response = resourceBuilder.post(ClientResponse.class, parameters);
+			Builder resourceBuilder = getResource().accept(MediaType.APPLICATION_JSON_TYPE,MediaType.TEXT_HTML_TYPE);
+			ClientResponse response = invoker.perform(resourceBuilder);
 			if(response.getStatus()!=200){
 				throw new MojoExecutionException("Error processing request "+response.getClientResponseStatus().toString());
 			}
@@ -333,11 +377,11 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 		return new HTTPBasicAuthFilter(userName, password);
 	}
 
-	public static void disableCertificateValidation() {
+	public static SSLContext createSSLContext() throws MojoExecutionException {
 		        // Create a trust manager that does not validate certificate chains
 		        TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
 		            public X509Certificate[] getAcceptedIssuers() {
-		                return null;
+		                return new X509Certificate[]{};
 		            }
 
 		            public void checkClientTrusted(X509Certificate[] certs, String authType) {
@@ -351,10 +395,11 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 
 		        // Install the all-trusting trust manager
 		        try {
-		            SSLContext sc = SSLContext.getInstance("SSL");
+		            SSLContext sc = SSLContext.getInstance("TLS");
 		            sc.init(null, trustAllCerts, new SecureRandom());
-		            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+		            return sc;
 		        } catch (Exception e) {
+		        	throw new MojoExecutionException("Error on SSL initialization", e);
 		        }
 		    }
 
