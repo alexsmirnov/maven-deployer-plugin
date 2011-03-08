@@ -65,17 +65,19 @@ import com.sun.jersey.multipart.file.FileDataBodyPart;
  */
 public abstract class AbstractDeployerMojo extends AbstractMojo {
 
+	private static final String ADMIN = "admin";
+
 	/**
 	 * The default username to use when authenticating with Tomcat manager.
-	 * @parameter expression="${user}" default-value="admin"
+	 * @parameter expression="${user}"
 	 */
-	protected String user = "admin";
+	protected String user;
 
 	/**
 	 * The default password to use when authenticating with Tomcat manager.
 	 * @parameter expression="${password}" default-value=""
 	 */
-	protected String password = "";
+	protected String password;
 
 	/**
 	 * The project whose project files to create.
@@ -172,9 +174,9 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 		SSLContext ctx = createSSLContext();
 		ClientConfig config=new DefaultClientConfig();
 		config.getProperties().put(HTTPSProperties.PROPERTY_HTTPS_PROPERTIES, new HTTPSProperties(getHostNameVerifier(),ctx));
-		config.getProperties().put(ClientConfig.PROPERTY_FOLLOW_REDIRECTS,Boolean.TRUE);
+//		config.getProperties().put(ClientConfig.PROPERTY_FOLLOW_REDIRECTS,Boolean.TRUE);
 		client = Client.create(config);
-		client.setFollowRedirects(true);
+//		client.setFollowRedirects(true);
 		client.addFilter(getAuthorization());
 	}
 
@@ -341,12 +343,15 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 		String userName;
 		String password;
 	
-		if (targetServer == null) {
+		if( null != this.user){
+			userName = this.user;
+			password = this.password;
+		} else if (targetServer == null) {
 			// no targetServer set, use defaults
 			getLog()
 			        .info(
 			                "No targetServer specified for authentication - using defaults");
-			userName = user;
+			userName = ADMIN;
 			password = this.password;
 		} else {
 			// obtain authenication details for specified targetServer from
@@ -363,7 +368,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 			if (userName == null) {
 				getLog().info(
 				        "No targetServer username specified - using default");
-				userName = user;
+				userName = ADMIN;
 			}
 	
 			// derive password
@@ -395,7 +400,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 
 		        // Install the all-trusting trust manager
 		        try {
-		            SSLContext sc = SSLContext.getInstance("TLS");
+		            SSLContext sc = SSLContext.getInstance("SSL");
 		            sc.init(null, trustAllCerts, new SecureRandom());
 		            return sc;
 		        } catch (Exception e) {
