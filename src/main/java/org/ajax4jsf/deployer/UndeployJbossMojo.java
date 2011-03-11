@@ -24,7 +24,6 @@ import org.apache.maven.plugin.MojoExecutionException;
  * 
  * @author <a href="mailto:jgenender@apache.org">Jeff Genender</a>
  * @goal undeploy-jboss
- * @aggregator true
  * @description Maven 2 JBoss plugin
  */
 public class UndeployJbossMojo extends AbstractJbossDeployer {

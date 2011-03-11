@@ -12,7 +12,6 @@ import org.apache.maven.plugin.MojoExecutionException;
 /**
  * @author asmirnov
  * @goal undeploy-glassfish
- * @aggregator true
  *
  */
 public class UndeployGlassfishMojo extends AbstractGlassfishDeployer {

@@ -8,5 +8,5 @@ Features:
   by single command: mvn package deployer:deploy from the root module. Of course,
   it's configurable.
 - if target Jboss server runs on remote machine, tries to find public API ( jboss downloads
-  file to deploy from URL, therefore that URL should be visible from target server.
+  file to deploy from URL, therefore that URL should be visible from target server ).
 

@@ -68,13 +68,13 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	private static final String ADMIN = "admin";
 
 	/**
-	 * The default username to use when authenticating with Tomcat manager.
+	 * The  username to use when authenticating with target server.
 	 * @parameter expression="${user}"
 	 */
 	protected String username;
 
 	/**
-	 * The default password to use when authenticating with Tomcat manager.
+	 * The default password to use when authenticating with target server.
 	 * @parameter expression="${password}" default-value=""
 	 */
 	protected String password;
@@ -114,7 +114,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	protected String packaging;
 
 	/**
-	 * The host jboss is running on
+	 * The host name where target server is running on
 	 * 
 	 * @parameter expression="${targetHost}" default-value="localhost"
 	 * @required
@@ -141,12 +141,13 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	protected WagonManager wagonManager;
 
 	/**
+	 * Enables https protocol.
 	 * @parameter expression ="${secure}" default-value="false"
 	 * 
 	 */
 	private boolean secure = false;
 	/**
-	 * The targetServer id to use when authenticating with Tomcat manager, or
+	 * The targetServer is id to use when authenticating with remote server, or
 	 * <code>null</code> to use defaults.
 	 * 
 	 * @parameter
@@ -155,6 +156,14 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 
 	
 	/**
+	 * File to deploy. For jar/war/ejb/ear projects, default value is project archive. For
+	 * multi-module ( pom packaging ) projects, plugin tries to find the most important module:
+	 * <ul>
+	 * <li>If one of project modules has type 'ear', use it</li>
+	 * <li>Otherwise, try to find 'war' project.</li>
+	 * <li>Repeat for 'sar' and 'ear' types.</li>
+	 * <li>If all types of above were not found, use the last 'jar' packaged module.</li>
+	 * </ul>
 	 * @parameter expression="${deploymentFile}"
 	 */
 	protected File deploymentFile;

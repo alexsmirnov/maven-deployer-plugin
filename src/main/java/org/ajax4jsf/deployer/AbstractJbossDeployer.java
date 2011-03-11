@@ -25,25 +25,31 @@ import org.apache.maven.plugin.MojoExecutionException;
 public abstract class AbstractJbossDeployer extends AbstractDeployerMojo {
 
 	/**
-	 * The targetPort jboss is running on
+	 * The targetPort where server admin is running on. Default value is 8080.
 	 * 
 	 * @parameter expression="${targetPort}" default-value="8080"
 	 */
 	protected int targetPort;
 	/**
-	 * The port local server is running on
+	 * The port on which the local server is running on. Jboss downloads file for
+	 * deployment by http, therefore plugin starts local server for download.
 	 * 
 	 * @parameter expression="${localPort}" default-value="9999"
 	 * @required
 	 */
 	protected int localPort;
 	/**
-	 * The host local server is running on
-	 * 
+	 * The host/ip address where local server is running on. For deplojment on the remote server,
+	 * that adress should be available for requests from the target server. 
+	 * In the most cases, pligin is able to determine public network interface on the machine
+	 * where it's running. Use that parameter if automated detection fails ( multi-home host, network address
+	 * translation, VPN ). 
 	 * @parameter expression="${localHost}"
 	 */
 	protected String localHost;
 	/**
+	 * Jboss 5.1.GA has a bug in http protocol deploiment, therefore remote deploiment is not available. 
+	 * In that case, set this option to true for use file: protocol instead of http: 
 	 * @parameter expression ="${http}" default-value="true"
 	 * 
 	 */
