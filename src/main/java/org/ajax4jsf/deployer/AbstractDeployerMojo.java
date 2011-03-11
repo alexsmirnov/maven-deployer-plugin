@@ -71,7 +71,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 * The default username to use when authenticating with Tomcat manager.
 	 * @parameter expression="${user}"
 	 */
-	protected String user;
+	protected String username;
 
 	/**
 	 * The default password to use when authenticating with Tomcat manager.
@@ -155,14 +155,14 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 
 	
 	/**
-	 * Jersey REST client
-	 */
-	private  Client client;
-	/**
 	 * @parameter expression="${deploymentFile}"
 	 */
 	protected File deploymentFile;
-	
+
+	/**
+	 * Jersey REST client
+	 */
+	private  Client client;
 	public void execute() throws MojoExecutionException, MojoFailureException {
 		init();
 		performCommand(getDeploymentFile());
@@ -340,46 +340,54 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 * @throws MojoExecutionException
 	 */
 	protected ClientFilter getAuthorization() throws MojoExecutionException {
-		String userName;
-		String password;
+		ClientFilter authFilter;
 	
-		if( null != this.user){
-			userName = this.user;
-			password = this.password;
-		} else if (targetServer == null) {
+		if( null != this.username){
+			authFilter = new HTTPBasicAuthFilter(this.username,this.password);
+		} else if (targetServer != null) {
+			authFilter = getServerAuthentication(targetServer);
+		} else if (targetHost != null) {
+			authFilter = getServerAuthentication(targetHost);
+		} else {
 			// no targetServer set, use defaults
 			getLog()
 			        .info(
 			                "No targetServer specified for authentication - using defaults");
-			userName = ADMIN;
-			password = this.password;
-		} else {
-			// obtain authenication details for specified targetServer from
-			// wagon
-			AuthenticationInfo info = wagonManager
-			        .getAuthenticationInfo(targetServer);
-			if (info == null) {
-				throw new MojoExecutionException(
-				        "Server not defined in settings.xml: " + targetServer);
-			}
-	
-			// derive username
-			userName = info.getUserName();
-			if (userName == null) {
-				getLog().info(
-				        "No targetServer username specified - using default");
-				userName = ADMIN;
-			}
-	
-			// derive password
-			password = info.getPassword();
-			if (password == null) {
-				getLog().info(
-				        "No targetServer password specified - using default");
-				password = this.password;
-			}
+			authFilter = new HTTPBasicAuthFilter(ADMIN,this.password);
 		}
-		return new HTTPBasicAuthFilter(userName, password);
+		return authFilter;
+	}
+
+	private ClientFilter getServerAuthentication(String serverId) throws MojoExecutionException {
+		ClientFilter authFilter;
+		// obtain authenication details for specified targetServer from
+		// wagon
+		String userName;
+		String password;
+		AuthenticationInfo info = wagonManager
+		        .getAuthenticationInfo(serverId);
+		if (info == null) {
+			throw new MojoExecutionException(
+			        "Server not defined in settings.xml: " + targetServer);
+		}
+
+		// derive username
+		userName = info.getUserName();
+		if (userName == null) {
+			getLog().info(
+			        "No targetServer username specified - using default");
+			userName = ADMIN;
+		}
+
+		// derive password
+		password = info.getPassword();
+		if (password == null) {
+			getLog().info(
+			        "No targetServer password specified - using default");
+			password = this.password;
+		}
+		authFilter = new HTTPBasicAuthFilter(userName, password);
+		return authFilter;
 	}
 
 	public static SSLContext createSSLContext() throws MojoExecutionException {
