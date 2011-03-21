@@ -29,8 +29,10 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Map;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import javax.ws.rs.core.MediaType;
@@ -48,8 +50,11 @@ import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.WebResource.Builder;
+import com.sun.jersey.api.client.config.ClientConfig;
+import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.ClientFilter;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+import com.sun.jersey.client.urlconnection.HTTPSProperties;
 import com.sun.jersey.core.util.MultivaluedMapImpl;
 import com.sun.jersey.multipart.FormDataMultiPart;
 import com.sun.jersey.multipart.file.FileDataBodyPart;
@@ -60,17 +65,19 @@ import com.sun.jersey.multipart.file.FileDataBodyPart;
  */
 public abstract class AbstractDeployerMojo extends AbstractMojo {
 
-	/**
-	 * The default username to use when authenticating with Tomcat manager.
-	 * @parameter expression="${user}" default-value="admin"
-	 */
-	protected String user = "admin";
+	private static final String ADMIN = "admin";
 
 	/**
-	 * The default password to use when authenticating with Tomcat manager.
+	 * The  username to use when authenticating with target server.
+	 * @parameter expression="${user}"
+	 */
+	protected String username;
+
+	/**
+	 * The default password to use when authenticating with target server.
 	 * @parameter expression="${password}" default-value=""
 	 */
-	protected String password = "";
+	protected String password;
 
 	/**
 	 * The project whose project files to create.
@@ -107,7 +114,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	protected String packaging;
 
 	/**
-	 * The host jboss is running on
+	 * The host name where target server is running on
 	 * 
 	 * @parameter expression="${targetHost}" default-value="localhost"
 	 * @required
@@ -134,12 +141,13 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	protected WagonManager wagonManager;
 
 	/**
+	 * Enables https protocol.
 	 * @parameter expression ="${secure}" default-value="false"
 	 * 
 	 */
 	private boolean secure = false;
 	/**
-	 * The targetServer id to use when authenticating with Tomcat manager, or
+	 * The targetServer is id to use when authenticating with remote server, or
 	 * <code>null</code> to use defaults.
 	 * 
 	 * @parameter
@@ -148,52 +156,99 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 
 	
 	/**
-	 * Jersey REST client
-	 */
-	private  Client client;
-	/**
+	 * File to deploy. For jar/war/ejb/ear projects, default value is project archive. For
+	 * multi-module ( pom packaging ) projects, plugin tries to find the most important module:
+	 * <ul>
+	 * <li>If one of project modules has type 'ear', use it</li>
+	 * <li>Otherwise, try to find 'war' project.</li>
+	 * <li>Repeat for 'sar' and 'ear' types.</li>
+	 * <li>If all types of above were not found, use the last 'jar' packaged module.</li>
+	 * </ul>
 	 * @parameter expression="${deploymentFile}"
 	 */
 	protected File deploymentFile;
-	
+
+	/**
+	 * Jersey REST client
+	 */
+	private  Client client;
 	public void execute() throws MojoExecutionException, MojoFailureException {
 		init();
-		performCommand();
+		performCommand(getDeploymentFile());
 	}
 
-	protected abstract void performCommand() throws MojoExecutionException;
+	protected abstract void performCommand(File file) throws MojoExecutionException;
 
 	private void init() throws MojoExecutionException {
-		if(secure){
-			disableCertificateValidation();
-		}
-		client = Client.create();
+		SSLContext ctx = createSSLContext();
+		ClientConfig config=new DefaultClientConfig();
+		config.getProperties().put(HTTPSProperties.PROPERTY_HTTPS_PROPERTIES, new HTTPSProperties(getHostNameVerifier(),ctx));
+//		config.getProperties().put(ClientConfig.PROPERTY_FOLLOW_REDIRECTS,Boolean.TRUE);
+		client = Client.create(config);
+//		client.setFollowRedirects(true);
 		client.addFilter(getAuthorization());
 	}
 
+	private HostnameVerifier getHostNameVerifier() {
+		return new HostnameVerifier() {
+			
+			public boolean verify(String hostname, SSLSession session) {
+				return true;
+			}
+		};
+	}
+
 	protected void doPostRequest(Map<String, String> parameters) throws MojoExecutionException {
-		MultivaluedMapImpl mapImpl = new MultivaluedMapImpl();
+		final MultivaluedMapImpl mapImpl = prepareParameters(parameters);
+		doPost(new RequestInvoker() {
+			
+			public ClientResponse perform(Builder resource) {
+				return resource.type(MediaType.APPLICATION_FORM_URLENCODED_TYPE).post(ClientResponse.class, mapImpl);
+			}
+		});
+	}
+
+	protected void doDeleteRequest(final Map<String, String> parameters) throws MojoExecutionException {
+		final MultivaluedMapImpl mapImpl = prepareParameters(parameters);
+		doPost(new RequestInvoker() {
+			
+			public ClientResponse perform(Builder resource) {
+//				for (Map.Entry<String, String> entry : parameters.entrySet()) {
+//					resource.
+//				}
+				return resource.type(MediaType.APPLICATION_FORM_URLENCODED_TYPE).delete(ClientResponse.class);
+			}
+		});
+	}
+
+	private MultivaluedMapImpl prepareParameters(Map<String, String> parameters) {
+		final MultivaluedMapImpl mapImpl = new MultivaluedMapImpl();
 		for (Map.Entry<String, String> entry : parameters.entrySet()) {
 			mapImpl.add(entry.getKey(), entry.getValue());
 		}
-		doPost(mapImpl, MediaType.APPLICATION_FORM_URLENCODED_TYPE);
+		return mapImpl;
 	}
 
 	protected void doPostFileRequest(String fileParameter, File file,Map<String, String> parameters) throws MojoExecutionException {
-		FormDataMultiPart formDataMultiPart = new FormDataMultiPart();
+		final FormDataMultiPart formDataMultiPart = new FormDataMultiPart();
 		formDataMultiPart.bodyPart(new FileDataBodyPart(fileParameter, file));
 		for (Map.Entry<String, String> entry : parameters.entrySet()) {
 			formDataMultiPart.field(entry.getKey(), entry.getValue());
 		}
-		doPost(formDataMultiPart, MediaType.MULTIPART_FORM_DATA_TYPE);
+		doPost(new RequestInvoker() {
+			
+			public ClientResponse perform(Builder resource) {
+				return resource.type(MediaType.MULTIPART_FORM_DATA_TYPE).post(ClientResponse.class, formDataMultiPart);
+			}
+		});
 	}
 
-	private void doPost(Object parameters, MediaType mediaType)
+	private void doPost(RequestInvoker invoker)
 			throws MojoExecutionException {
 		try {
 			getLog().info("Calling target server ");
-			Builder resourceBuilder = getResource().type(mediaType).accept(MediaType.APPLICATION_JSON_TYPE,MediaType.TEXT_HTML_TYPE);
-			ClientResponse response = resourceBuilder.post(ClientResponse.class, parameters);
+			Builder resourceBuilder = getResource().accept(MediaType.APPLICATION_JSON_TYPE,MediaType.TEXT_HTML_TYPE);
+			ClientResponse response = invoker.perform(resourceBuilder);
 			if(response.getStatus()!=200){
 				throw new MojoExecutionException("Error processing request "+response.getClientResponseStatus().toString());
 			}
@@ -294,50 +349,61 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 * @throws MojoExecutionException
 	 */
 	protected ClientFilter getAuthorization() throws MojoExecutionException {
-		String userName;
-		String password;
+		ClientFilter authFilter;
 	
-		if (targetServer == null) {
+		if( null != this.username){
+			authFilter = new HTTPBasicAuthFilter(this.username,this.password);
+		} else if (targetServer != null) {
+			authFilter = getServerAuthentication(targetServer);
+		} else if (targetHost != null) {
+			authFilter = getServerAuthentication(targetHost);
+		} else {
 			// no targetServer set, use defaults
 			getLog()
 			        .info(
 			                "No targetServer specified for authentication - using defaults");
-			userName = user;
-			password = this.password;
-		} else {
-			// obtain authenication details for specified targetServer from
-			// wagon
-			AuthenticationInfo info = wagonManager
-			        .getAuthenticationInfo(targetServer);
-			if (info == null) {
-				throw new MojoExecutionException(
-				        "Server not defined in settings.xml: " + targetServer);
-			}
-	
-			// derive username
-			userName = info.getUserName();
-			if (userName == null) {
-				getLog().info(
-				        "No targetServer username specified - using default");
-				userName = user;
-			}
-	
-			// derive password
-			password = info.getPassword();
-			if (password == null) {
-				getLog().info(
-				        "No targetServer password specified - using default");
-				password = this.password;
-			}
+			authFilter = new HTTPBasicAuthFilter(ADMIN,this.password);
 		}
-		return new HTTPBasicAuthFilter(userName, password);
+		return authFilter;
 	}
 
-	public static void disableCertificateValidation() {
+	private ClientFilter getServerAuthentication(String serverId) throws MojoExecutionException {
+		ClientFilter authFilter;
+		// obtain authenication details for specified targetServer from
+		// wagon
+		String userName;
+		String password;
+		AuthenticationInfo info = wagonManager
+		        .getAuthenticationInfo(serverId);
+		if (info == null) {
+			throw new MojoExecutionException(
+			        "Server not defined in settings.xml: " + targetServer);
+		}
+
+		// derive username
+		userName = info.getUserName();
+		if (userName == null) {
+			getLog().info(
+			        "No targetServer username specified - using default");
+			userName = ADMIN;
+		}
+
+		// derive password
+		password = info.getPassword();
+		if (password == null) {
+			getLog().info(
+			        "No targetServer password specified - using default");
+			password = this.password;
+		}
+		authFilter = new HTTPBasicAuthFilter(userName, password);
+		return authFilter;
+	}
+
+	public static SSLContext createSSLContext() throws MojoExecutionException {
 		        // Create a trust manager that does not validate certificate chains
 		        TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
 		            public X509Certificate[] getAcceptedIssuers() {
-		                return null;
+		                return new X509Certificate[]{};
 		            }
 
 		            public void checkClientTrusted(X509Certificate[] certs, String authType) {
@@ -353,8 +419,9 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 		        try {
 		            SSLContext sc = SSLContext.getInstance("SSL");
 		            sc.init(null, trustAllCerts, new SecureRandom());
-		            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+		            return sc;
 		        } catch (Exception e) {
+		        	throw new MojoExecutionException("Error on SSL initialization", e);
 		        }
 		    }
 

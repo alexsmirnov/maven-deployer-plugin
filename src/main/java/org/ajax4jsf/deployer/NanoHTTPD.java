@@ -226,11 +226,12 @@ public abstract class NanoHTTPD {
 		public void run() {
 			log("start serve client connection");
 			String uri = null;
+			BufferedReader in=null;
 			try {
 				InputStream is = mySocket.getInputStream();
 				if (is == null)
 					return;
-				BufferedReader in = new BufferedReader(
+				in = new BufferedReader(
 						new InputStreamReader(is));
 
 				// Read the request line
@@ -301,8 +302,6 @@ public abstract class NanoHTTPD {
 							"SERVER INTERNAL ERROR: Serve() returned a null response.");
 				else
 					sendResponse(r.status, r.mimeType, r.header, r.data);
-
-				in.close();
 			} catch (IOException ioe) {
 				try {
 					sendError(HTTP_INTERNALERROR,
@@ -314,6 +313,13 @@ public abstract class NanoHTTPD {
 				// Thrown by sendError, ignore and exit the thread.
 			} finally {
 				log("Done processing client request");
+				if(null != in){
+					try {
+						in.close();
+					} catch (IOException e) {
+						log("Error to close input stream");
+					}
+				}
 				cleanup(uri);
 			}
 		}
@@ -384,11 +390,12 @@ public abstract class NanoHTTPD {
 		 */
 		private void sendResponse(String status, String mime,
 				Properties header, InputStream data) {
+			OutputStream out = null;
 			try {
 				if (status == null)
 					throw new Error("sendResponse(): Status can't be null.");
 
-				OutputStream out = mySocket.getOutputStream();
+				out = mySocket.getOutputStream();
 				PrintWriter pw = new PrintWriter(out);
 				pw.print("HTTP/1.0 " + status + " \r\n");
 
@@ -399,7 +406,7 @@ public abstract class NanoHTTPD {
 					pw.print("Date: " + gmtFrmt.format(new Date()) + "\r\n");
 
 				if (header != null) {
-					Enumeration e = header.keys();
+					Enumeration<Object> e = header.keys();
 					while (e.hasMoreElements()) {
 						String key = (String) e.nextElement();
 						String value = header.getProperty(key);
@@ -420,14 +427,25 @@ public abstract class NanoHTTPD {
 					}
 				}
 				out.flush();
-				out.close();
-				if (data != null)
-					data.close();
 			} catch (IOException ioe) {
 				// Couldn't write? No can do.
 				try {
 					mySocket.close();
 				} catch (Throwable t) {
+				}
+			} finally {
+				if (data != null)
+					try {
+						data.close();
+					} catch (IOException e) {
+						log("Error to close input data stream");
+					}
+				if( null != out){
+					try {
+						out.close();
+					} catch (IOException e) {
+						log("Error to close output stream");
+					}
 				}
 			}
 		}
