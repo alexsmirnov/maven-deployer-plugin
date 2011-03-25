@@ -5,10 +5,15 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.richfaces.cdk</groupId>
 	<artifactId>maven-deployer-plugin</artifactId>
-	<version>4.0.0-SNAPSHOT</version>
+	<version>1.0.0-SNAPSHOT</version>
 	<packaging>maven-plugin</packaging>
 	<name>maven-deployer-plugin Maven Mojo</name>
 	<description>Plugin to deploy JEE application to the remote Jboss or Glassfish server.</description>
+		<scm>
+		<developerConnection>scm:git:git@github.com:alexsmirnov/maven-deployer-plugin.git</developerConnection>
+		<url>https://github.com/alexsmirnov/maven-deployer-plugin</url>
+	</scm>
+	
 	<build>
 		<plugins>
 			<plugin>
