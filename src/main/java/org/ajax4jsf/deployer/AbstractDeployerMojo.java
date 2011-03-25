@@ -16,10 +16,7 @@
 
 package org.ajax4jsf.deployer;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -30,14 +27,12 @@ import java.util.List;
 import java.util.Map;
 
 import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import javax.ws.rs.core.MediaType;
 
-import org.apache.commons.codec.binary.Base64;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.manager.WagonManager;
 import org.apache.maven.plugin.AbstractMojo;
@@ -150,9 +145,9 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 * The targetServer is id to use when authenticating with remote server, or
 	 * <code>null</code> to use defaults.
 	 * 
-	 * @parameter
+	 * @parameter expression ="${serverId}"
 	 */
-	protected String targetServer;
+	protected String serverId;
 
 	
 	/**
@@ -353,8 +348,8 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	
 		if( null != this.username){
 			authFilter = new HTTPBasicAuthFilter(this.username,this.password);
-		} else if (targetServer != null) {
-			authFilter = getServerAuthentication(targetServer);
+		} else if (serverId != null) {
+			authFilter = getServerAuthentication(serverId);
 		} else if (targetHost != null) {
 			authFilter = getServerAuthentication(targetHost);
 		} else {
@@ -377,7 +372,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 		        .getAuthenticationInfo(serverId);
 		if (info == null) {
 			throw new MojoExecutionException(
-			        "Server not defined in settings.xml: " + targetServer);
+			        "Server not defined in settings.xml: " + serverId);
 		}
 
 		// derive username
