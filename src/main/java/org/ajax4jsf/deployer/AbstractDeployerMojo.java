@@ -150,9 +150,9 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 * The targetServer is id to use when authenticating with remote server, or
 	 * <code>null</code> to use defaults.
 	 * 
-	 * @parameter
+	 * @parameter expression ="${serverId}"
 	 */
-	protected String targetServer;
+	protected String serverId;
 
 	
 	/**
@@ -355,10 +355,10 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 			getLog().info(
 			        "Get authentication from plugin configuration");
 			authFilter = new HTTPBasicAuthFilter(this.username,this.password);
-		} else if (targetServer != null) {
+		} else if (serverId != null) {
 			getLog().info(
-	        "Get authentication from serverId "+targetServer);
-			authFilter = getServerAuthentication(targetServer);
+	        "Get authentication from serverId "+serverId);
+			authFilter = getServerAuthentication(serverId);
 		} else if (targetHost != null) {
 			getLog().info(
 			        "Get authentication from the same serverId as target host "+targetHost);
@@ -383,7 +383,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 		        .getAuthenticationInfo(serverId);
 		if (info == null) {
 			throw new MojoExecutionException(
-			        "Server not defined in settings.xml: " + targetServer);
+			        "Server not defined in settings.xml: " + serverId);
 		}
 
 		// derive username
