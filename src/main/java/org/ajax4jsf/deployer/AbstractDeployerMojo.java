@@ -69,7 +69,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 
 	/**
 	 * The  username to use when authenticating with target server.
-	 * @parameter expression="${user}"
+	 * @parameter expression="${username}"
 	 */
 	protected String username;
 
@@ -77,7 +77,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 	 * The default password to use when authenticating with target server.
 	 * @parameter expression="${password}" default-value=""
 	 */
-	protected String password;
+	protected String password ="";
 
 	/**
 	 * The project whose project files to create.
@@ -352,10 +352,16 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 		ClientFilter authFilter;
 	
 		if( null != this.username){
+			getLog().info(
+			        "Get authentication from plugin configuration");
 			authFilter = new HTTPBasicAuthFilter(this.username,this.password);
 		} else if (targetServer != null) {
+			getLog().info(
+	        "Get authentication from serverId "+targetServer);
 			authFilter = getServerAuthentication(targetServer);
 		} else if (targetHost != null) {
+			getLog().info(
+			        "Get authentication from the same serverId as target host "+targetHost);
 			authFilter = getServerAuthentication(targetHost);
 		} else {
 			// no targetServer set, use defaults
