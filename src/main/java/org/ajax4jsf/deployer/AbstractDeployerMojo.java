@@ -16,10 +16,7 @@
 
 package org.ajax4jsf.deployer;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -30,14 +27,12 @@ import java.util.List;
 import java.util.Map;
 
 import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import javax.ws.rs.core.MediaType;
 
-import org.apache.commons.codec.binary.Base64;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.manager.WagonManager;
 import org.apache.maven.plugin.AbstractMojo;
@@ -250,6 +245,7 @@ public abstract class AbstractDeployerMojo extends AbstractMojo {
 			Builder resourceBuilder = getResource().accept(MediaType.APPLICATION_JSON_TYPE,MediaType.TEXT_HTML_TYPE);
 			ClientResponse response = invoker.perform(resourceBuilder);
 			if(response.getStatus()!=200){
+				getLog().error("Error processing request: "+response.toString());
 				throw new MojoExecutionException("Error processing request "+response.getClientResponseStatus().toString());
 			}
 		} catch (Exception e) {
