@@ -28,13 +28,12 @@ public class DeployGlassfishMojo extends AbstractGlassfishDeployer {
 		doPostFileRequest("id", file, parameters);
 	}
 
-	private Map<String, String> getParameters(File file) {
+	protected Map<String, String> getParameters(File file) {
 		String name = getApplicationName(file);
 		String contextRoot = getContextRoot(file);
 		HashMap<String, String> params = new HashMap<String, String>(4);
 		params.put("name", name);
 		params.put("contextroot", contextRoot);
-		params.put("force", "true");
 		return params;
 	}
 
